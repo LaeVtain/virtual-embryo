@@ -1,15 +1,15 @@
-# 官方提交接口
+# 官方提交
 
-客户端固定访问 `https://api.virtualembryo.ai`，使用环境变量 `SUBMIT_TOKEN`。可用 `python -m virtual_embryo.challenge --env-file /path/to/.env ...` 显式读取凭据文件。
+将 `SUBMIT_TOKEN` 写入环境变量，或在子命令前添加 `--env-file /path/to/.env`。输入为 H5AD，导出命令见 [README](../README.md#评估导出和测试)。
 
-先读取当前阶段、榜单、配额和历史：
+## 命令
 
 ```bash
 mkdir receipts
 python -m virtual_embryo.challenge inspect --out receipts/inspect.jsonl
 ```
 
-以 T2 heart 的测试外推为例：
+T2 heart 测试外推：
 
 ```bash
 python -m virtual_embryo.challenge format-only outputs/heart.h5ad --task T2 --board T2:heart:test_extrap --setting heart --mode extrap --out receipts/heart-format.jsonl
@@ -19,6 +19,16 @@ python -m virtual_embryo.challenge submit outputs/heart.h5ad --task T2 --board T
 python -m virtual_embryo.challenge status SUBMISSION_ID --out receipts/heart-status.jsonl
 ```
 
-T1 测试使用 `--task T1 --board T1:test`；T2 embryo 测试插值使用 `--task T2 --board T2:embryo:test_interp --setting embryo --mode interp`。其他榜单以 `inspect` 的当前结果为准。
+## 参数
 
-客户端根据榜单派生 `split`，正式测试附带 `confirm_final=true`。提交前记录文件 SHA-256 和幂等键，响应后核对服务端文件标识与榜单。网络中断后用原回执的 `--retry-from` 重用幂等键；重试时须保持文件及提交参数一致。回执路径每次使用新文件。测试只模拟接口调用，运行 `pytest` 不会产生真实提交。
+| 参数 | 说明 |
+|---|---|
+| `--task`、`--board` | 上传必填；任务名和榜单标识 |
+| `--setting`、`--mode` | T2 必填；`heart/embryo` 与 `interp/extrap` |
+| `--out` | 回执文件；上传必填，父目录须存在，文件须为新路径 |
+| `--format-receipt` | 提交时使用同一预测文件的成功格式检查回执 |
+| `--confirm-final` | 正式测试提交必填，会消耗一次测试机会 |
+| `--retry-from` | 网络中断后使用原提交回执重试；文件和提交参数保持一致 |
+| `--split` | 可选 `val/test`；默认从榜单派生 |
+
+T1 测试使用 `--task T1 --board T1:test`；T2 embryo 测试插值使用 `--task T2 --board T2:embryo:test_interp --setting embryo --mode interp`。榜单是否开放以 `inspect` 的结果为准。

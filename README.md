@@ -14,7 +14,7 @@ src/virtual_embryo/
 └── paths.py         模型路径配置
 scripts/import_assets.py  从原项目导入模型资产
 tests/                    测试
-docs/                     各任务用法、提交命令、清理记录
+docs/                     各任务运行参数与提交命令
 pyproject.toml            依赖和包配置
 .env.example              环境变量示例
 .gitignore                本地产物忽略规则
