@@ -13,6 +13,8 @@ src/virtual_embryo/
 ├── population.py    群体数据读取与基因对齐
 └── paths.py         模型路径配置
 scripts/import_assets.py  从原项目导入模型资产
+run_models.py             从九份原始输入生成四项冻结版预测
+results/                  冻结版的本地得分及与历史版本的对照
 tests/                    测试
 docs/                     各任务运行参数与提交命令
 pyproject.toml            依赖和包配置
@@ -44,11 +46,11 @@ python -m pip install -e ".[dev]"
 python scripts/import_assets.py --workspace /path/to/original/workspace --destination models
 ```
 
-| 任务 | 推理输入 NPZ |
+| 任务 | 推理输入 |
 |---|---|
-| T1 | `x`：表达矩阵，列顺序与 `models/t1/genes.json` 一致 |
-| T2 | `x`：表达矩阵；`c`：三维坐标；`genes`：基因名 |
-| T3 | 同 T2，一次输入完整 WT 群体；支持 `Mab21l2`、`Gata4` |
+| T1 | 官方 E10.5 源 RNA、E8.5 校准 RNA、E14.5 心脏及野生型谱系参考 H5AD、整胚芯片变化表与面板 |
+| T2 | 整胚使用四个已知日龄的空间样本和细胞类型，心脏使用两个阶段及心室、组织切片和三维解剖参考。支持 H5AD 和 NPZ |
+| T3 | 同龄野生型群体 NPZ（`x`、`c`、`genes`）。支持 `Mab21l2`、`Gata4`、`bcatenin` |
 
 训练数据准备及参数见 [T1](docs/t1.md)、[T2](docs/t2.md)、[T3](docs/t3.md)。
 
@@ -67,10 +69,19 @@ python -m virtual_embryo.t3.train --wt data/mab_wt_train.npz --ko data/mab_ko_tr
 
 ### 推理
 
+复现 11 月 19 日冻结版时，将配套离线模型包中的 `models/` 和 `panels/` 放在仓库根目录。将 E8.5、E10.5 的两份 RNA H5AD，以及 E6.75、E7.25、E7.5、E8.0、E8.75、E9.5、E10.5 的七份空间 H5AD 放在同一输入目录。运行以下命令生成四个测试板的预测文件。
+
 ```bash
-python -m virtual_embryo.t1.predict --input data/t1_input.npz --output-dir outputs/t1 --source-time 10.5 --target-time 12.5
-python -m virtual_embryo.t2.predict --setting heart --input data/heart_input.npz --output outputs/heart.npz --source-time 8.75 --target-time 9.5
-python -m virtual_embryo.t3.predict --condition Mab21l2 --input data/wt.npz --output outputs/mab.npz
+python run_models.py --data /path/to/challenge_data --output outputs/frozen
+```
+
+P3 测试使用以下入口。T1 的芯片、心脏及谱系参考准备命令见 T1 文档。T3 使用 `bcatenin-v2.npz`。具体数据准备和面板对齐命令见各任务文档。
+
+```bash
+python -m virtual_embryo.t1.lineage_forecast --source data/E10.5_RNA.h5ad --calibration data/E8.5_RNA.h5ad --reference data/heart_reference/E14.5_heart.h5ad --nuclear-reference data/nuclear_reference/E14.5_wt_nuclei.h5ad --lineage-reference data/lineage_reference.h5ad --chamber-reference data/chamber_reference.npz --cross-gene-dispersion --panel data/T1__test.genes.txt --trend data/geo/stage_effects.csv --interval 5 --source-time 10.5 --target-time 12.5 --cells 4096 --seed 101 --output outputs/T1__test.h5ad
+python -m virtual_embryo.t2.embryo_interpolate --stage 6.75 data/E6.75.h5ad --stage 7.25 data/E7.25.h5ad --stage 7.5 data/E7.5.h5ad --stage 8.0 data/E8.0.h5ad --target-time 7.75 --cells 4096 --spatial-model sections --match-capture-depth --section-volume --sample-sections --panel data/T2__embryo__test_interp.genes.txt --output outputs/embryo.npz
+python -m virtual_embryo.t2.heart_forecast --earlier data/E9.5.h5ad --later data/E10.5.h5ad --earlier-time 9.5 --later-time 10.5 --target-time 12.5 --cells 8192 --panel data/T2__heart__test_extrap.genes.txt --trend models/t2/heart_ventricular_trend.csv --anatomy models/t2/heart_e145.npz --spatial-rna models/t2/heart_spatial_niches.npz --state-reference models/t2/heart_state_095_145.npz --state-strength animal-horizon --output outputs/heart.npz
+python -m virtual_embryo.t3.predict --condition bcatenin-v2 --input data/e875_wt_sample.npz --output outputs/bcatenin.npz
 ```
 
 默认读取 `models/` 中的权重；运行新训练模型时，通过 `--model-dir` 指定按任务文档装配的模型目录。T1 的输出目录、T3 的输出文件须使用新路径。
@@ -85,4 +96,4 @@ python -m virtual_embryo.export --input outputs/heart.npz --output outputs/heart
 python -m pytest -q
 ```
 
-T1 导出时将 `--input` 改为 `outputs/t1`。官方提交需设置 `SUBMIT_TOKEN`，命令见 [提交说明](docs/submission.md)。
+T1 的 `lineage_forecast` 直接写出 H5AD。旧神经模型的预测目录可通过 `export --input outputs/t1` 导出。官方提交需设置 `SUBMIT_TOKEN`，命令见 [提交说明](docs/submission.md)。

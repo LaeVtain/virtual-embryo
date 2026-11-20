@@ -41,6 +41,14 @@ def export_assets(workspace: Path, destination: Path) -> dict:
     metadata = {f"T2_{setting}": {"genes": metadata[f"T2_{setting}"]["genes"]} for setting in ("heart", "embryo")}
     (destination / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
     sources["metadata.json"] = source / "model/metadata/runtime_metadata.json"
+    reference_dir = Path(workspace) / "Optimization_round2/heart"
+    for relative, asset_name in (("raw_arrays/heart_ventricular_trend.csv", "heart_ventricular_trend.csv"),
+                                 ("anatomy/heart_e145.npz", "heart_e145.npz"),
+                                 ("spatial_reference/spatial_niches.npz", "heart_spatial_niches.npz")):
+        reference = reference_dir / relative
+        if reference.is_file():
+            shutil.copyfile(reference, destination / asset_name)
+            sources[asset_name] = reference
     files = {}
     for name, original in sources.items():
         target = destination / name

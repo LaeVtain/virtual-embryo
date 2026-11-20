@@ -45,6 +45,18 @@ def score(task, prediction, truth, reference):
             "genes": len(genes), "metrics": clean(metrics), "diagnostics": clean(diagnostics)}
 
 
+def evaluation_populations(paths, layer, max_cells, seed):
+    # A different prediction size must not change the truth or reference sample.
+    # If the prediction is the reference itself, use the same sampled cells.
+    prediction, truth, reference = (Path(path).resolve() for path in paths)
+    loaded = {}
+    seeds = np.random.SeedSequence(seed).spawn(3)
+    for path, stream in zip((reference, truth, prediction), seeds):
+        if path not in loaded:
+            loaded[path] = load_population(path, layer, max_cells=max_cells, seed=stream)
+    return [loaded[path] for path in (prediction, truth, reference)]
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--task", choices=("T1", "T2", "T3"), required=True)
@@ -55,15 +67,8 @@ def main():
     parser.add_argument("--seed", type=int, default=0, help="Cell-subsampling seed")
     parser.add_argument("--threads", type=int, default=2)
     args = parser.parse_args()
-    populations = [load_population(path, args.layer) for path in (args.prediction, args.truth, args.reference)]
-    if args.max_cells is not None:
-        rng = np.random.default_rng(args.seed)
-        for pop in populations:
-            if len(pop["x"]) > args.max_cells:
-                rows = rng.choice(len(pop["x"]), args.max_cells, replace=False)
-                pop["x"] = pop["x"][rows]
-                if "c" in pop:
-                    pop["c"] = pop["c"][rows]
+    populations = evaluation_populations((args.prediction, args.truth, args.reference),
+                                         args.layer, args.max_cells, args.seed)
     with threadpool_limits(limits=args.threads):
         result = score(args.task, *populations)
     result.update(max_cells=args.max_cells, subsample_seed=args.seed)

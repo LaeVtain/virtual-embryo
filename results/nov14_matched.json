@@ -1,0 +1,107 @@
+[
+  {
+    "case": "embryo_7.5",
+    "seed": 431,
+    "cells": 1536,
+    "submitted": 76.9825841282277,
+    "frozen": 69.91375894543827,
+    "frozen_metrics": {
+      "de_score": 0.3225806451612903,
+      "de_direction": 0.5560378149703692,
+      "mmd_u": 0.03749750182032585,
+      "variogram": 0.02753167226910591,
+      "d2_shape": 0.016184576966150273,
+      "occupancy_dice": 0.7254901960784313,
+      "scale_log_ratio": -0.052693583066875015,
+      "neighborhood_mmd": 0.10209467262029648
+    },
+    "past_only_refit": 45.53785806255329
+  },
+  {
+    "case": "embryo_7.5",
+    "seed": 545,
+    "cells": 1536,
+    "submitted": 78.12456497049047,
+    "frozen": 72.13146806401475,
+    "frozen_metrics": {
+      "de_score": 0.3125,
+      "de_direction": 0.5908985105399485,
+      "mmd_u": 0.037606336176395416,
+      "variogram": 0.025868404656648636,
+      "d2_shape": 0.019412220829352334,
+      "occupancy_dice": 0.75625,
+      "scale_log_ratio": -0.054250458894704166,
+      "neighborhood_mmd": 0.1008765697479248
+    },
+    "past_only_refit": 46.99510658041103
+  },
+  {
+    "case": "embryo_7.5",
+    "seed": 659,
+    "cells": 1536,
+    "submitted": 76.62668978109228,
+    "frozen": 70.4652318039006,
+    "frozen_metrics": {
+      "de_score": 0.21666666666666654,
+      "de_direction": 0.5614480325744473,
+      "mmd_u": 0.03798437491059303,
+      "variogram": 0.027966413646936417,
+      "d2_shape": 0.01783556201545824,
+      "occupancy_dice": 0.7570977917981072,
+      "scale_log_ratio": -0.058535171147764395,
+      "neighborhood_mmd": 0.11656013876199722
+    },
+    "past_only_refit": 44.44511136297393
+  },
+  {
+    "case": "heart_10.5",
+    "seed": 431,
+    "cells": 1536,
+    "submitted": 31.072271575778622,
+    "frozen": 62.697492508323464,
+    "frozen_metrics": {
+      "de_score": 0.2898550724637681,
+      "de_direction": 0.34569399454743366,
+      "mmd_u": 0.013238620944321156,
+      "variogram": 0.019386304542422295,
+      "d2_shape": 0.011815312345186043,
+      "occupancy_dice": 0.7820224719101123,
+      "scale_log_ratio": -0.0012359313013670973,
+      "neighborhood_mmd": 0.0426456518471241
+    }
+  },
+  {
+    "case": "heart_10.5",
+    "seed": 545,
+    "cells": 1536,
+    "submitted": 31.311798110383183,
+    "frozen": 62.278053831622074,
+    "frozen_metrics": {
+      "de_score": 0.23529411764705882,
+      "de_direction": 0.3480323170801074,
+      "mmd_u": 0.012578005902469158,
+      "variogram": 0.01697070524096489,
+      "d2_shape": 0.01330957190469615,
+      "occupancy_dice": 0.7511520737327189,
+      "scale_log_ratio": 0.002950561095396754,
+      "neighborhood_mmd": 0.042614132165908813
+    }
+  },
+  {
+    "case": "heart_10.5",
+    "seed": 659,
+    "cells": 1536,
+    "submitted": 31.371426082082376,
+    "frozen": 61.92488587818745,
+    "frozen_metrics": {
+      "de_score": 0.23880597014925373,
+      "de_direction": 0.3283453881509592,
+      "mmd_u": 0.013227401301264763,
+      "variogram": 0.018239669501781464,
+      "d2_shape": 0.01610947405345384,
+      "occupancy_dice": 0.7608200455580866,
+      "scale_log_ratio": -0.001300211723068161,
+      "neighborhood_mmd": 0.03959587961435318
+    }
+  }
+]

@@ -95,6 +95,41 @@ def test_state8_training_excludes_perturbed_gene():
     assert audit["support_indices"] == list(range(16))
 
 
+def test_bcatenin_uses_target_signature_with_reordered_panel(tmp_path):
+    x, donor, genes = training_data()
+    coords = np.arange(len(x) * 3).reshape(-1, 3)
+    np.savez_compressed(tmp_path / "bcatenin.npz", genes=genes, bank=donor,
+                        signature=np.linspace(-1, 1, x.shape[1]))
+    result = predict(x, coords, genes, "bcatenin", model_dir=tmp_path)
+    reordered = predict(x[:, ::-1], coords, genes[::-1], "Ctnnb1", model_dir=tmp_path)
+    for key in result:
+        assert_array_equal(result[key], reordered[key])
+    assert_array_equal(result["c"], coords)
+    assert_array_equal(result["genes"], genes)
+    assert np.any(result["x"] != x, axis=1).sum() == round(len(x) / 2)
+
+
+def test_bcatenin_default_selects_new_asset_and_keeps_first_model_replayable(tmp_path):
+    x, donor, genes = training_data()
+    coords = np.arange(len(x) * 3).reshape(-1, 3)
+    rng = np.random.default_rng(123)
+    bank = donor[rng.integers(len(donor), size=8000)].astype(np.float32)
+    signature = np.linspace(-1, 1, x.shape[1])
+    np.savez_compressed(tmp_path / "bcatenin.npz", genes=genes, bank=bank, signature=signature)
+    original = predict(x, coords, genes, "bcatenin", model_dir=tmp_path)
+    atlas = x[rng.integers(len(x), size=19200)].astype(np.float32)
+    means = np.stack([stage.mean(0) for stage in np.split(atlas, 3)])
+    np.savez_compressed(tmp_path / "bcatenin-v2.npz", genes=genes, bank=bank, atlas=atlas,
+                        atlas_means=means, signature=signature, rna_response=signature / 5)
+    current = predict(x, coords, genes, "bcatenin", model_dir=tmp_path)
+    ordered = predict(x[:, ::-1], coords, genes[::-1], "bcatenin-v2", model_dir=tmp_path)
+    replayed = predict(x, coords, genes, "bcatenin-v1", model_dir=tmp_path)
+    assert_array_equal(original["x"], replayed["x"])
+    assert_array_equal(current["x"], ordered["x"])
+    assert_array_equal(current["c"], coords)
+    assert not np.array_equal(current["x"], original["x"])
+
+
 def test_train_and_predict_cli(tmp_path):
     x, y, genes = training_data()
     wt, ko = tmp_path / "wt.npz", tmp_path / "ko.npz"

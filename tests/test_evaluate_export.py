@@ -4,6 +4,7 @@ import pytest
 from common import core_metrics as core, shape_metrics as shape
 
 from virtual_embryo.evaluate import score
+from virtual_embryo.evaluate import evaluation_populations
 from virtual_embryo.export import export_h5ad
 
 
@@ -39,3 +40,21 @@ def test_prediction_export_preserves_values_and_gene_order(populations, tmp_path
     np.testing.assert_array_equal(result.X.toarray(), pred["x"].astype(np.float32))
     np.testing.assert_array_equal(result.obsm["spatial_3D"], pred["c"].astype(np.float32))
     assert result.var_names.tolist() == pred["genes"].tolist()
+
+
+def test_capped_evaluation_fixes_truth_and_reference_across_candidates(populations, tmp_path):
+    pred, truth, ref = populations
+    paths = []
+    for name, pop in [("prediction", pred), ("truth", truth), ("reference", ref)]:
+        path = tmp_path / (name + ".npz")
+        np.savez(path, **pop)
+        paths.append(path)
+    short = tmp_path / "short.npz"
+    np.savez(short, x=pred["x"][:15], genes=pred["genes"], c=pred["c"][:15])
+    comparison = evaluation_populations(paths, None, 24, 41)
+    smaller = evaluation_populations([short, *paths[1:]], None, 24, 41)
+    copy_last = evaluation_populations([paths[2], *paths[1:]], None, 24, 41)
+    for other in (smaller, copy_last):
+        for position in (1, 2):
+            np.testing.assert_array_equal(other[position]["x"], comparison[position]["x"])
+    np.testing.assert_array_equal(copy_last[0]["x"], copy_last[2]["x"])
