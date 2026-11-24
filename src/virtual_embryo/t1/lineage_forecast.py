@@ -101,6 +101,12 @@ def main():
                         help="Use the two-library whole-cell atlas or independently assayed GSM8394736 nuclei")
     parser.add_argument("--nuclear-reference", type=Path,
                         help="Use this second E14.5 nuclear atlas for expression marginals on whole-cell ranks")
+    parser.add_argument("--nuclear-trajectory", action="store_true",
+                        help="Calibrate gene means across the source and late nuclei at matched detection complexity")
+    parser.add_argument("--nuclear-population", choices=("rank", "odds"),
+                        help="Refine the nuclear trajectory using the full, measured source population")
+    parser.add_argument("--empirical-fraction", type=float, default=0.,
+                        help="Fraction of nuclear forecast cells based on intact depth-matched measurements")
     parser.add_argument("--lineage-reference", type=Path, required=True, help="Prepared external lineage H5AD")
     parser.add_argument("--chamber-reference", type=Path, help="Optional WT cardiac chamber time-course NPZ")
     parser.add_argument("--state-dispersion", action="store_true",
@@ -120,6 +126,12 @@ def main():
         parser.error("Choose a new output file")
     if args.nuclear_reference and args.reference_assay != "whole-cell":
         parser.error("--nuclear-reference requires a whole-cell atlas as the primary --reference")
+    if args.nuclear_trajectory and not args.nuclear_reference:
+        parser.error("--nuclear-trajectory requires --nuclear-reference")
+    if args.nuclear_population and not args.nuclear_trajectory:
+        parser.error("--nuclear-population requires --nuclear-trajectory")
+    if not 0 <= args.empirical_fraction <= 1 or (args.empirical_fraction and not args.nuclear_population):
+        parser.error("--empirical-fraction must be in [0, 1] and requires --nuclear-population when positive")
     genes = pd.Index(args.panel.read_text(encoding="utf-8-sig").splitlines())
     source, _ = read_stage(args.source, genes)
     if not 2 <= args.cells <= source.shape[0]:
@@ -134,8 +146,8 @@ def main():
     trend = pd.read_csv(args.trend, index_col=0)["log_ratio"]
     multipliers = gene_multipliers(trend, genes, args.target_time - args.source_time, args.interval)
 
-    def predict(reference_path, assay):
-        reference, libraries = read_measurement(reference_path, genes)
+    def predict(measurement, assay):
+        reference, libraries = measurement
         output = forecast(donors, genes, bundle, reference, libraries, calibration,
                           earlier_libraries, multipliers, args.source_time, args.target_time, args.seed,
                           assay)
@@ -152,11 +164,27 @@ def main():
         return output
 
     with threadpool_limits(limits=2):
-        output = predict(args.reference, args.reference_assay)
+        output = predict(read_measurement(args.reference, genes), args.reference_assay)
         if args.nuclear_reference:
-            from .reference_marginals import exchange_marginals
-            nuclear = predict(args.nuclear_reference, "nucleus")
+            from .reference_marginals import exchange_marginals, project_nuclear_means
+            measurement = read_measurement(args.nuclear_reference, genes)
+            nuclear = predict(measurement, "nucleus")
+            del calibration, bundle
             output = exchange_marginals(output, nuclear)
+            del nuclear
+            if args.nuclear_trajectory:
+                output = project_nuclear_means(output, donors, measurement[0], args.source_time, args.target_time)
+            if args.nuclear_population:
+                from .nuclear_population import project_population
+                del donors
+                population, _ = read_stage(args.source, genes)
+                output = project_population(output, population, measurement[0], args.source_time,
+                                            args.target_time, method=args.nuclear_population)
+                if args.empirical_fraction:
+                    from .nuclear_population import restore_empirical_cells
+                    fraction = (args.target_time - args.source_time) / (14.5 - args.source_time)
+                    output = restore_empirical_cells(output, population, measurement[0], fraction, args.seed,
+                                                     args.empirical_fraction)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     ad.AnnData(output, var=pd.DataFrame(index=genes)).write_h5ad(args.output, compression="gzip")
     print(args.output)

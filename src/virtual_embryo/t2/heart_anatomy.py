@@ -59,6 +59,28 @@ def place_population(predicted, source_coords, ages, atlas):
     return (shape_coordinates(predicted, atlas_coords, fraction) * radius).astype(np.float32)
 
 
+def refine_shape(coordinates, recent, target, atlas_coords):
+    """Estimate the remaining displacement to the E14.5 atlas in successive orthogonal frames."""
+    source = np.asarray(coordinates, dtype=np.float64)
+    normalized, reference, axes = aligned_atlas(source, atlas_coords)
+    moved = normalized.copy()
+    probabilities = (np.arange(len(moved)) + .5) / len(moved)
+    rng = np.random.default_rng(7194)
+    for iteration in range(15):
+        rotation = np.eye(3) if iteration == 0 else np.linalg.qr(rng.normal(size=(3, 3)))[0]
+        current = moved @ rotation
+        wanted = np.quantile(reference @ rotation, probabilities, axis=0)
+        order = np.argsort(current, axis=0, kind="stable")
+        displacement = np.empty_like(moved)
+        ranked = np.take_along_axis(current, order, axis=0)
+        np.put_along_axis(displacement, order, wanted - ranked, axis=0)
+        moved += .65 * displacement @ rotation.T
+    fraction = (target - recent) / (14.5 - recent)
+    result = (normalized + fraction * (moved - normalized)) @ axes.T
+    result -= result.mean(axis=0)
+    return (result * (rms_radius(source) / rms_radius(result)) + source.mean(axis=0)).astype(np.float32)
+
+
 def early_weights(x, c, genes, horizon):
     markers = [genes.index(g) for g in ("Myh7", "Myl7", "Myl2", "Tbx5", "Hand1", "Hand2", "Isl1") if g in genes]
     if not markers:

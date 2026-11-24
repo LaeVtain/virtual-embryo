@@ -9,6 +9,7 @@ from sklearn.neighbors import NearestNeighbors
 from threadpoolctl import threadpool_limits
 
 from .population import align_population, load_population
+from .scoring import calibrated_score
 
 
 def neighborhood_mmd(pred_x, pred_c, true_x, true_c):
@@ -63,6 +64,7 @@ def main():
     for name in ("prediction", "truth", "reference", "output"):
         parser.add_argument("--" + name, type=Path, required=True)
     parser.add_argument("--layer", help="H5AD expression layer; default X")
+    parser.add_argument("--anchors", type=Path, help="JSON metric floors and ceilings for this board or specimen")
     parser.add_argument("--max-cells", type=int, help="Optional independent subsample limit for each population")
     parser.add_argument("--seed", type=int, default=0, help="Cell-subsampling seed")
     parser.add_argument("--threads", type=int, default=2)
@@ -71,6 +73,9 @@ def main():
                                          args.layer, args.max_cells, args.seed)
     with threadpool_limits(limits=args.threads):
         result = score(args.task, *populations)
+    if args.anchors is not None:
+        anchors = json.loads(args.anchors.read_text(encoding="utf-8-sig"))
+        result["calibrated"] = calibrated_score(args.task, result["metrics"], anchors.get("anchors", anchors))
     result.update(max_cells=args.max_cells, subsample_seed=args.seed)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8")

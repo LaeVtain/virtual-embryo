@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "virtual-embryo-models"
-version = "0.1.0"
+version = "2026.11.24"
 description = "Training, inference and evaluation of temporal, spatial and perturbation embryo models"
 requires-python = ">=3.11"
 dependencies = [

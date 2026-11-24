@@ -2,7 +2,9 @@
 import argparse
 from pathlib import Path
 
+import anndata as ad
 import numpy as np
+from scipy import sparse
 from scipy.linalg import solve
 from scipy.special import softmax
 from threadpoolctl import threadpool_limits
@@ -31,23 +33,37 @@ def within_type_response(rna_files, genes, gene):
 
 
 def _read_bank(path, genes, sample_size=None):
-    with np.load(path, allow_pickle=False) as data:
-        names = data["genes"].astype(str).tolist()
+    def align(profiles, names):
         order = {name: index for index, name in enumerate(names)}
         if len(names) != len(order) or set(names) != set(genes):
             raise ValueError(f"Expected one column for each spatial panel gene in {path}")
-        profiles = data["x"]
         if sample_size is not None:
-            rows = np.random.default_rng(618).choice(len(profiles), sample_size, replace=False)
+            rows = np.random.default_rng(618).choice(profiles.shape[0], sample_size, replace=False)
             profiles = profiles[rows]
+        if sparse.issparse(profiles):
+            profiles = profiles.toarray()
         return profiles[:, [order[g] for g in genes]]
+
+    if Path(path).suffix.lower() == ".h5ad":
+        data = ad.read_h5ad(path, backed="r")
+        try:
+            return align(data.layers["log1p"].astype(np.float32), data.var_names)
+        finally:
+            data.file.close()
+    with np.load(path, allow_pickle=False) as data:
+        return align(data["x"], data["genes"].astype(str))
+
+
+def reference_banks(wt_path, ko_path, atlas_paths, genes):
+    bank = make_bank(_read_bank(wt_path, genes), _read_bank(ko_path, genes))
+    references = [_read_bank(path, genes, sample_size=6400) for path in atlas_paths]
+    return bank, references
 
 
 def fit(wt_path, ko_path, atlas_paths, rna_files, gene="Ctnnb1"):
     with np.load(wt_path, allow_pickle=False) as data:
         genes = data["genes"].astype(str)
-    bank = make_bank(_read_bank(wt_path, genes), _read_bank(ko_path, genes))
-    references = [_read_bank(path, genes, sample_size=6400) for path in atlas_paths]
+    bank, references = reference_banks(wt_path, ko_path, atlas_paths, genes)
     return dict(genes=genes, bank=bank, atlas=np.vstack(references),
                 atlas_means=np.stack([ref.mean(0) for ref in references]),
                 signature=gene_signature(rna_files, genes, gene),

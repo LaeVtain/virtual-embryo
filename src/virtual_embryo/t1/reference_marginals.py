@@ -14,6 +14,32 @@ from .chamber_projection import match_means
 from .lineage_response import mean
 
 
+def _mean_at_complexity(matrix, target_depth):
+    depth = np.diff(matrix.indptr)
+    edges = np.unique(np.quantile(target_depth, np.linspace(0, 1, 9)[1:-1]))
+    groups = np.searchsorted(edges, depth)
+    target_groups = np.searchsorted(edges, target_depth)
+    count = np.bincount(groups, minlength=len(edges) + 1)
+    desired = np.bincount(target_groups, minlength=len(edges) + 1) / len(target_depth)
+    observed = np.flatnonzero(count)
+    for empty in np.flatnonzero(count == 0):
+        nearest = observed[np.argmin(np.abs(observed - empty))]
+        desired[nearest] += desired[empty]
+    return np.asarray(matrix.T @ (desired[groups] / count[groups])).ravel()
+
+
+def project_nuclear_means(prediction, source, late_nuclei, source_time, target_time):
+    """Interpolate gene means between matched nuclear measurements at the predicted complexity."""
+    if not source_time < target_time < 14.5:
+        raise ValueError("The source and E14.5 reference must bracket the target stage.")
+    fraction = (target_time - source_time) / (14.5 - source_time)
+    depth = np.diff(prediction.indptr)
+    before = _mean_at_complexity(source, depth)
+    after = _mean_at_complexity(late_nuclei, depth)
+    trajectory = (1 - fraction) * before + fraction * after
+    return match_means(prediction, .5 * (mean(prediction) + trajectory))
+
+
 def exchange_marginals(whole, nuclear):
     """Match per-gene quantiles, using local expression to resolve equal whole-cell ranks."""
     n_cells, n_genes = whole.shape

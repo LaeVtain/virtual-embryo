@@ -93,7 +93,8 @@ def move_compartments(z, w, left_labels, right_labels, fraction, from_right):
     return np.where(from_right[:, None], right_guess, left_guess)
 
 
-def interpolate(stages, target_time, cells, seed=101, *, include_donor=False, donor_policy=None, match_capture_depth=False):
+def interpolate(stages, target_time, cells, seed=101, *, include_donor=False, donor_policy=None, match_capture_depth=False,
+                sample_endpoints=None):
     """Use stage dictionaries with x, c, genes and measured cell-type labels."""
     times = sorted(stages)
     if (len(times) < 2 or not np.isfinite([*times, target_time]).all()
@@ -127,8 +128,12 @@ def interpolate(stages, target_time, cells, seed=101, *, include_donor=False, do
     z, scale_a = _canonical_coordinates(left_c)
     w, scale_b = _canonical_coordinates(right_c)
     w = align_celltypes(z, _align_frames(z, w, rng), left_labels, right_labels)
-    a = rng.choice(len(z), cells, replace=False)
-    b = rng.choice(len(w), cells, replace=False)
+    if sample_endpoints is None:
+        a = rng.choice(len(z), cells, replace=False)
+        b = rng.choice(len(w), cells, replace=False)
+    else:
+        a = sample_endpoints(stages[source_time], cells, rng)
+        b = sample_endpoints(stages[end_time], cells, rng)
 
     left_features = spatial_mean(left_x, left_c, 24)[a]
     right_features = spatial_mean(right_x, right_c, 24)[b]
@@ -187,7 +192,7 @@ def read_annotated_stage(path, genes, *, include_depth=False):
 
 
 def registered_prediction(stages, target, cells, seed=101, *, fit_compartments=False, track_sections=False,
-                          match_capture_depth=False, include_donor=False):
+                          match_capture_depth=False, include_donor=False, sample_endpoints=None):
     """Move each sampled donor along the reciprocal displacement between both measured tissues."""
     from . import tissue_registration
     if target in stages or not min(stages) < target < max(stages):
@@ -202,7 +207,7 @@ def registered_prediction(stages, target, cells, seed=101, *, fit_compartments=F
         def donor_policy(left_rows, right_rows, sampled):
             return assign_donors(groups[earlier][left_rows], groups[later][right_rows], sampled, desired)
     prediction = interpolate(stages, target, cells, seed, include_donor=True, donor_policy=donor_policy,
-                             match_capture_depth=match_capture_depth)
+                             match_capture_depth=match_capture_depth, sample_endpoints=sample_endpoints)
     fraction = (target-earlier)/(later-earlier)
     genes = prediction["genes"].tolist()
     endpoints = []
@@ -236,8 +241,16 @@ def main():
                         help="Estimate the clock from shared tissue and measured panel-depth strata")
     parser.add_argument("--section-volume", action="store_true",
                         help="Estimate the physical radius from tissue areas in the measured source sections")
+    parser.add_argument("--growth-reference", type=Path,
+                        help="Estimate the physical growth curve using measured external histology lengths")
     parser.add_argument("--sample-sections", action="store_true",
                         help="Reconstruct the measured section spacing and depth distribution")
+    parser.add_argument("--continuous-section-depth", action="store_true",
+                        help="Estimate the density between observed sections before resampling the new stack")
+    parser.add_argument("--local-expression", action="store_true",
+                        help="Match intact expression profiles to the nearby tissue on the finished spatial grid")
+    parser.add_argument("--interpolate-gene-ranks", action="store_true",
+                        help="Interpolate cell expression ranks within each flanking developmental stage")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     genes = args.panel.read_text(encoding="utf-8").splitlines()
@@ -247,21 +260,35 @@ def main():
         if time in stages:
             parser.error("Each stage time must be unique")
         stages[time] = read_annotated_stage(Path(path), genes, include_depth=args.match_capture_depth)
+    need_donors = args.sample_sections or args.interpolate_gene_ranks
     with threadpool_limits(limits=1):
         if args.spatial_model == "landmarks":
             result = interpolate(stages, args.target_time, args.cells, args.seed,
-                                 match_capture_depth=args.match_capture_depth, include_donor=args.sample_sections)
+                                 match_capture_depth=args.match_capture_depth, include_donor=need_donors)
         else:
             result = registered_prediction(stages, args.target_time, args.cells, args.seed,
                                            fit_compartments=args.spatial_model in ("compartments", "sections"),
                                            track_sections=args.spatial_model == "sections",
-                                           match_capture_depth=args.match_capture_depth, include_donor=args.sample_sections)
-        if args.section_volume:
+                                           match_capture_depth=args.match_capture_depth, include_donor=need_donors)
+        if args.growth_reference is not None:
+            from .embryo_growth import project_radius
+            with np.load(args.growth_reference, allow_pickle=False) as reference:
+                result["c"] = project_radius(stages, args.target_time, result["c"], reference)
+        elif args.section_volume:
             from .section_volume import adjust_radius
             result["c"] = adjust_radius(stages, args.target_time, result["c"])
         if args.sample_sections:
             from .section_sampling import restore_sections
-            result["c"] = restore_sections(stages, args.target_time, result["c"], result.pop("row"), result.pop("later"))
+            result["c"] = restore_sections(stages, args.target_time, result["c"], result["row"], result["later"],
+                                           continuous=args.continuous_section_depth)
+        if args.interpolate_gene_ranks:
+            from .embryo_expression_ranks import interpolate_ranks
+            result["x"] = interpolate_ranks(result["x"], result["c"], result["later"], args.seed)
+        if need_donors:
+            del result["row"], result["later"]
+        if args.local_expression:
+            from .local_expression import place_local_profiles
+            result["x"] = place_local_profiles(result["x"], result["c"])
     args.output.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(args.output, **result)
 

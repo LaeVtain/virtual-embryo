@@ -21,6 +21,14 @@ receipts/
 *.h5
 *.npy
 *.npz
+!/releases/2026-11-24/parameters/t1/chamber_reference.npz
+!/releases/2026-11-24/parameters/t2/embryo_physical_lengths.npz
+!/releases/2026-11-24/parameters/t2/heart_clean_history_105_125.npz
+!/releases/2026-11-24/parameters/t2/heart_e145.npz
+!/releases/2026-11-24/parameters/t2/heart_spatial_niches.npz
+!/releases/2026-11-24/parameters/t2/heart_state_095_145.npz
+!/releases/2026-11-24/parameters/t3/bcatenin_coefficients.npz
+!/releases/2026-11-24/parameters/t3/developmental_response.npz
 *.pt
 *.pth
 *.joblib

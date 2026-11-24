@@ -6,6 +6,21 @@ from common import core_metrics as core, shape_metrics as shape
 from virtual_embryo.evaluate import score
 from virtual_embryo.evaluate import evaluation_populations
 from virtual_embryo.export import export_h5ad
+from virtual_embryo.scoring import calibrated_score
+
+
+def test_calibrated_spatial_score_applies_neighborhood_discount():
+    floors = {"de_score": 0, "de_direction": 0, "mmd_u": 1, "variogram": 1,
+              "d2_shape": 1, "occupancy_dice": 0, "scale_log_ratio": -1, "neighborhood_mmd": 1}
+    anchors = {name: {"floor": value, "ceiling": float(value == 0)} for name, value in floors.items()}
+    metrics = {name: bound["ceiling"] for name, bound in anchors.items()}
+    metrics["mmd_rbf"] = metrics.pop("mmd_u")
+    metrics["d2_distance"] = metrics.pop("d2_shape")
+    metrics["neighborhood_mmd"] = 3.
+    result = calibrated_score("T2", metrics, anchors)
+    assert result["skills"]["neighborhood_mmd"] == pytest.approx(.25)
+    assert result["credited_points"]["d2_shape"] == pytest.approx(100 / 24)
+    assert result["total"] == pytest.approx(68.75)
 
 
 @pytest.fixture

@@ -24,7 +24,15 @@ def _section_axis(coordinates, measured_depth):
     return axis, reliability
 
 
-def restore_sections(stages, target, coordinates, donor_rows, from_later):
+def _continuous_depth(depth, ranks):
+    levels, counts = np.unique(np.round(depth, 2), return_counts=True)
+    probabilities = (np.cumsum(counts)-.5*counts) / counts.sum()
+    before = levels[0]-.5*(levels[1]-levels[0])
+    after = levels[-1]+.5*(levels[-1]-levels[-2])
+    return np.interp(ranks, np.r_[0., probabilities, 1.], np.r_[before, levels, after])
+
+
+def restore_sections(stages, target, coordinates, donor_rows, from_later, *, continuous=False):
     """Estimate a target slice stack from measured source sections and the registered donor positions."""
     left = max(age for age in stages if age < target)
     right = min(age for age in stages if age > target)
@@ -57,7 +65,10 @@ def restore_sections(stages, target, coordinates, donor_rows, from_later):
     normal /= magnitude
     projection = centered @ normal
     rank = (rankdata(projection) - 0.5) / len(projection)
-    quantiles = [np.interp(rank, np.linspace(0, 1, len(depth)), np.sort(depth)) for depth in depths]
+    if continuous:
+        quantiles = [_continuous_depth(depth, rank) for depth in depths]
+    else:
+        quantiles = [np.interp(rank, np.linspace(0, 1, len(depth)), np.sort(depth)) for depth in depths]
     target_depth = (1 - fraction) * quantiles[0] + fraction * quantiles[1]
     target_depth -= target_depth.mean()
     target_depth *= projection.std() / max(1e-8, target_depth.std())

@@ -9,7 +9,7 @@ from threadpoolctl import threadpool_limits
 
 from .heart_composition import calibrate
 from .heart_sampling import donor_adjustment, molecule_counts, stratified_counts
-from .heart_anatomy import early_weights, place_population, rms_radius
+from .heart_anatomy import early_weights, place_population, refine_shape, rms_radius
 from .heart_spatial_rna import merfish_posterior, reorder_niches
 from .temporal import _align_population, read_stage
 
@@ -37,10 +37,15 @@ def developmental_change(trend, genes, recent, target):
 
 
 def predict(earlier, later, ages, cells, seed, trend, atlas=None, niches=None, stratified_molecules=False,
-            *, state_reference=None, state_strength="evidence"):
+            *, state_reference=None, state_strength="evidence", refine_anatomy=False, local_expression=False,
+            maturation_reference=None, donor_sampler=None, match_tissue_profiles=False):
     first, recent, target = ages
     if not first < recent < target:
         raise ValueError("Expected increasing ages for both observations and the forecast")
+    if (refine_anatomy or maturation_reference is not None) and atlas is None:
+        raise ValueError("An anatomical atlas is required for shape refinement")
+    if match_tissue_profiles and (maturation_reference is None or "dissected_max_surrounding" not in maturation_reference):
+        raise ValueError("Tissue profile matching requires the tissue-annotated cardiac maturation reference")
     genes = list(np.asarray(later["genes"]).astype(str))
     x0, c0 = _align_population(earlier, genes)
     x1, c1 = _align_population(later, genes)
@@ -73,7 +78,11 @@ def predict(earlier, later, ages, cells, seed, trend, atlas=None, niches=None, s
             weights = weights * odds
             weights /= weights.sum(dtype=np.float64)
     rng = np.random.default_rng(seed)
-    rows = rng.choice(len(x1), cells, replace=False, p=weights)
+    if maturation_reference is not None and "surrounding_retention" in maturation_reference:
+        from .heart_maturation import dissection_weights
+        weights = dissection_weights(weights, later["labels"], cells, maturation_reference)
+    rows = (rng.choice(len(x1), cells, replace=False, p=weights) if donor_sampler is None
+            else donor_sampler(later, weights, cells, rng))
     x = x1[rows]
     observed_counts = molecule_counts(x)
     relative_depth = damping * np.clip(np.log(d1 / d0), -.8, .8)
@@ -115,6 +124,24 @@ def predict(earlier, later, ages, cells, seed, trend, atlas=None, niches=None, s
         from .heart_state_bridge import transfer
         prediction = transfer(prediction, x, later["labels"][rows], later["depth"][rows],
                               ages, seed, state_reference, state_strength)
+    if maturation_reference is not None:
+        from .heart_maturation import mature_heart
+        prediction = mature_heart(prediction, later["c"], atlas[0], recent, target, maturation_reference, seed,
+                            source_labels=later.get("labels"), atlas_radius=atlas[1])
+        if match_tissue_profiles:
+            from .heart_maturation import surrounding_tissues
+            from .measured_neighborhoods import measured_neighborhoods
+            if surrounding_tissues(later["labels"]).mean() < maturation_reference["dissected_max_surrounding"]:
+                from .heart_capture import project_capture
+                prediction["x"] = project_capture(prediction, later, rows, seed)
+            prediction["x"] = measured_neighborhoods(prediction["x"], prediction["c"], [later], rows,
+                                                      np.zeros(len(rows), dtype=int), .65)
+        return prediction
+    if refine_anatomy:
+        prediction["c"] = refine_shape(prediction["c"], recent, target, atlas[0])
+    if local_expression:
+        from .local_expression import place_local_profiles
+        prediction["x"] = place_local_profiles(prediction["x"], prediction["c"])
     return prediction
 
 
@@ -128,6 +155,11 @@ def main():
     cli.add_argument("--panel", required=True, type=Path)
     cli.add_argument("--trend", required=True, type=Path)
     cli.add_argument("--anatomy", type=Path, help="E14.5 organ reference containing coordinates and RMS radius")
+    cli.add_argument("--refine-anatomy", action="store_true", help="Refine spatial transport to the E14.5 reference")
+    cli.add_argument("--local-expression", action="store_true",
+                     help="Match complete expression profiles to nearby tissue on the forecast heart geometry")
+    cli.add_argument("--maturation-reference", type=Path,
+                     help="Nuclear forecast for joint spatial detection and developmental shape interpolation")
     cli.add_argument("--spatial-rna", type=Path, help="Replicated E9.5/E14.5 cardiac niche model")
     cli.add_argument("--state-reference", type=Path, help="Permitted-stage wild-type single-cell state transitions")
     cli.add_argument("--state-strength", choices=("fixed", "duration", "evidence", "animal-horizon"), default="evidence",
@@ -135,17 +167,25 @@ def main():
     cli.add_argument("--stratified-molecules", action="store_true",
                      help="Balance per-gene detection and correct for stochastic donor sampling")
     cli.add_argument("--output", required=True, type=Path)
+    cli.add_argument("--match-tissue-profiles", action="store_true",
+                     help="Match native cardiac neighborhoods and calibrate gene detection in dissected heart tissue")
     cli.add_argument("--cells", type=int, default=8192)
     cli.add_argument("--seed", type=int, default=101)
     args = cli.parse_args()
     panel = args.panel.read_text(encoding="utf-8-sig").splitlines()
     first = read_stage(args.earlier, panel)
+    maturation = None
+    if args.maturation_reference is not None:
+        with np.load(args.maturation_reference, allow_pickle=False) as data:
+            maturation = dict(data)
     state_reference = None
-    if args.state_reference is None:
-        second = read_stage(args.later, panel)
-    else:
+    physical = maturation is not None and bool(maturation.get("physical_geometry", False))
+    if args.state_reference is not None or physical:
         from .embryo_interpolate import read_annotated_stage
-        second = read_annotated_stage(args.later, panel, include_depth=True)
+        second = read_annotated_stage(args.later, panel, include_depth=args.state_reference is not None)
+    else:
+        second = read_stage(args.later, panel)
+    if args.state_reference is not None:
         with np.load(args.state_reference, allow_pickle=False) as data:
             state_reference = dict(data)
     trend = pd.read_csv(args.trend, index_col=0)
@@ -160,7 +200,9 @@ def main():
     with threadpool_limits(limits=1):
         prediction = predict(first, second, (args.earlier_time, args.later_time, args.target_time),
                              args.cells, args.seed, trend, atlas, niches, args.stratified_molecules,
-                             state_reference=state_reference, state_strength=args.state_strength)
+                             state_reference=state_reference, state_strength=args.state_strength,
+                             refine_anatomy=args.refine_anatomy, local_expression=args.local_expression,
+                             maturation_reference=maturation, match_tissue_profiles=args.match_tissue_profiles)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(args.output, **prediction)
 

@@ -13,13 +13,13 @@ from . import atlas_response, runtime
 from .mixture import predict_mixture
 
 
-TRANSFER_NAMES = ("bcatenin", "Ctnnb1", "bcatenin-v1", "bcatenin-v2")
+TRANSFER_NAMES = ("bcatenin", "Ctnnb1", "bcatenin-v1", "bcatenin-v2", "bcatenin-v3", "bcatenin-v4")
 
 
 def predict(x, c, genes, condition, seed=101, model_dir=None):
     folder = Path(model_dir) if model_dir is not None else task_assets("t3")
     if condition in TRANSFER_NAMES:
-        use_v2 = condition == "bcatenin-v2" or (
+        use_v2 = condition in ("bcatenin-v2", "bcatenin-v3", "bcatenin-v4") or (
             condition != "bcatenin-v1" and (folder / "bcatenin-v2.npz").is_file()
         )
         model_path = folder / ("bcatenin-v2.npz" if use_v2 else "bcatenin.npz")
@@ -30,6 +30,13 @@ def predict(x, c, genes, condition, seed=101, model_dir=None):
             aligned = align_population({"x": x, "genes": np.asarray(genes)}, expected)
             if use_v2:
                 result = atlas_response.predict(aligned["x"], c, dict(model), seed)
+                if condition in ("bcatenin-v3", "bcatenin-v4"):
+                    from .response_ranks import couple_response
+                    result["x"] = couple_response(aligned["x"], result["x"], seed)
+                if condition == "bcatenin-v4":
+                    from .developmental_response import refine_response
+                    with np.load(folder / "developmental_response.npz", allow_pickle=False) as summary:
+                        result["x"] = refine_response(aligned["x"], result["x"], expected, summary, seed)
             else:
                 result = predict_mixture(aligned["x"], c, model["bank"], seed,
                                          signature=model["signature"], sensitivity=0.5)

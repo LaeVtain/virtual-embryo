@@ -4,13 +4,31 @@ from pathlib import Path
 import subprocess
 import sys
 
+import anndata as ad
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
+from scipy import sparse
 import torch
 
 from virtual_embryo.t3.predict import predict
+from virtual_embryo.t3.atlas_response import _read_bank
 from virtual_embryo.t3.runtime import features
 from virtual_embryo.t3.train import calibrate, fit_mean, fit_state, histogram, prepare_projection, train
+
+
+def test_reference_bank_reads_log_layer_and_aligns_genes_before_release(tmp_path):
+    genes = np.array(["b", "a", "c"])
+    profiles = np.arange(36, dtype=np.float32).reshape(12, 3)
+    original = ad.AnnData(np.zeros_like(profiles))
+    original.var_names = genes
+    original.layers["log1p"] = sparse.csr_matrix(profiles)
+    original.write_h5ad(tmp_path / "stage.h5ad")
+    np.savez(tmp_path / "stage.npz", x=profiles, genes=genes)
+    expected_genes = ["a", "b", "c"]
+    rows = np.random.default_rng(618).choice(12, 5, replace=False)
+    for filename in ("stage.h5ad", "stage.npz"):
+        actual = _read_bank(tmp_path / filename, expected_genes, sample_size=5)
+        assert_array_equal(actual, profiles[rows][:, [1, 0, 2]])
 
 
 def training_data():

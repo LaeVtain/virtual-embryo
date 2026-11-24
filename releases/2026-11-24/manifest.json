@@ -1,0 +1,128 @@
+{
+  "version": "2026-11-24",
+  "runtime": {
+    "python": "3.12.14",
+    "anndata": "0.10.9",
+    "numpy": "2.2.6",
+    "scipy": "1.15.3",
+    "pandas": "2.3.3",
+    "torch": "2.6.0",
+    "h5py": "3.15.1",
+    "scikit-learn": "1.7.2",
+    "threadpoolctl": "3.6.0"
+  },
+  "assets": {
+    "models/t1/E14.5_heart.h5ad": {
+      "sha256": "9b70040936c93be79eb580d405cb8fd1763529f6bdec4674930060c9374d00e5",
+      "reference": "E14.5_heart.h5ad",
+      "content_sha256": "978d84f2f2570deb0cfc0794a51dfa42658ff427c27865eb63289efacc6823a8"
+    },
+    "models/t1/E14.5_wt_nuclei.h5ad": {
+      "sha256": "1b6eca91cc5b9bb8fcfae8085ddd153a496b736a04fcb5edad1543b1508d815e",
+      "reference": "E14.5_wt_nuclei.h5ad",
+      "content_sha256": "593ca9766c682b2bc6a4f0c2acc54349f929b80d98d81e943bfaf0e803bbbd79"
+    },
+    "models/t1/chamber_reference.npz": {
+      "sha256": "f421998fe9edf54d80748ff527e77c370d1cd10c1ad244a27355d9adc2d9994e",
+      "source": "parameters/t1/chamber_reference.npz"
+    },
+    "models/t1/lineage_reference.h5ad": {
+      "sha256": "1692be0e9f26dcb622ee18801d0c8132b9fb7f0da88dbf8729cffc136f4bd640",
+      "reference": "lineage_reference.h5ad",
+      "content_sha256": "11ced8e8d2c8cf558f7c1502dde0b604b4fc8bf095c698092c7303a08773ba9f"
+    },
+    "models/t1/stage_effects.csv": {
+      "sha256": "7b2255629a905a2b0a6fb63d6aaab48a45e5d8bcf234b823478185cfd2aa94a9",
+      "source": "parameters/t1/stage_effects.csv"
+    },
+    "models/t2/embryo_physical_lengths.npz": {
+      "sha256": "343cb5d3f531ff07d925c4a946349a3c255b6e4f916f7b19680d1cdaea00169c",
+      "source": "parameters/t2/embryo_physical_lengths.npz"
+    },
+    "models/t2/heart_clean_history_105_125.npz": {
+      "sha256": "3c0d08d148e74d59999945c4ef35f37db1b477f7647f5ebfe0d429b6aec927df",
+      "source": "parameters/t2/heart_clean_history_105_125.npz"
+    },
+    "models/t2/heart_e145.npz": {
+      "sha256": "17d95dd77423ae16bfbad071f2402a531fceec79474bb4707a57ef0189911c20",
+      "source": "parameters/t2/heart_e145.npz"
+    },
+    "models/t2/heart_spatial_niches.npz": {
+      "sha256": "1a7904108e9ba25cf05e79d3fff1e6adf01df262a37f9999acee87720cb15189",
+      "source": "parameters/t2/heart_spatial_niches.npz"
+    },
+    "models/t2/heart_state_095_145.npz": {
+      "sha256": "6615308b53773c5bed6e3a64ee79fa7b77f30a8d33d8bc6d270ecda6426e0c3c",
+      "source": "parameters/t2/heart_state_095_145.npz"
+    },
+    "models/t2/heart_ventricular_trend.csv": {
+      "sha256": "455fcfcca722f6e526253d24d7cacc29b674001458e189ac87abd6315bc73f80",
+      "source": "parameters/t2/heart_ventricular_trend.csv"
+    },
+    "models/t3/bcatenin-v2.npz": {
+      "sha256": "f27fbac88b1e788ad7a09341f8c621a3cd5e0670024f1e5f0d13596b3c9f6641",
+      "rebuild": "t3"
+    },
+    "models/t3/developmental_response.npz": {
+      "sha256": "16726c5c816b3aad3c9fe9c02f85c363d917a45b741269757d3a88c0a8f8c117",
+      "source": "parameters/t3/developmental_response.npz"
+    },
+    "panels/T1__test.genes.txt": {
+      "sha256": "2aeae4cd284933956242bbc9c5ab4f565c1d2acc7cc3fd3037977e4bce8be4bf",
+      "source": "panels/T1__test.genes.txt"
+    },
+    "panels/T2__embryo__test_interp.genes.txt": {
+      "sha256": "2721f3cf33946baba630ce22e91e8023e9ba89931c5b9848c9c80a5986cbb77b",
+      "source": "panels/T2__embryo__test_interp.genes.txt"
+    },
+    "panels/T2__heart__test_extrap.genes.txt": {
+      "sha256": "bf40079bfb50c78d9360905156bd7fd8b39e711ad0cc44866e6dac3f7e9999fa",
+      "source": "panels/T2__heart__test_extrap.genes.txt"
+    },
+    "panels/T3__bcatenin.genes.txt": {
+      "sha256": "bf40079bfb50c78d9360905156bd7fd8b39e711ad0cc44866e6dac3f7e9999fa",
+      "source": "panels/T3__bcatenin.genes.txt"
+    }
+  },
+  "t3": {
+    "coefficients": "parameters/t3/bcatenin_coefficients.npz",
+    "coefficients_sha256": "f85dc5ee8b74061c5bb77f982a8eb251af6b4d4e41ac41bef6a3f5f61804decd",
+    "inputs_sha256": {
+      "E9.5.h5ad": "371ca6530e084de2b6cd6703b49d95f4bb59546c9291659809575382a630ee9a",
+      "E9.5_mab21l2_ko.h5ad": "5b1668ab982e64f7683fbf5f905218fab311c63548de5f5bc18a74f9d4d357e0",
+      "E8.25_late.h5ad": "d56f94d3e2d719ed3074d86c03eae457ccf90b24145d33300f9958f0e8078593",
+      "E8.5.h5ad": "41c76db18bfaa92c1d66f8220ec5fbb6d6acccb0a6b78241f40080a3096d37db",
+      "E10.5.h5ad": "d6b37967f9cf3533091964cd07421c48a5c7c04628e9321123a426cb2a9c7e8b"
+    }
+  },
+  "predictions": {
+    "T1__test.h5ad": {
+      "shape": [
+        4096,
+        32285
+      ],
+      "sha256": "4d356b814bfa657abfa3dcaaaf3f18b8e9ccc3718bea2414ed641d9fdc0b8044"
+    },
+    "T2__embryo__test_interp.h5ad": {
+      "shape": [
+        5000,
+        497
+      ],
+      "sha256": "ae087aa65030231101b88f9f1a26e98401adcfe6b2093880bc8f150594b596b3"
+    },
+    "T2__heart__test_extrap.h5ad": {
+      "shape": [
+        8192,
+        500
+      ],
+      "sha256": "34c98307de70f64346ec3041d111e2b59bad2337a4f027159c0e4b824c5a13f8"
+    },
+    "T3__bcatenin.h5ad": {
+      "shape": [
+        7449,
+        500
+      ],
+      "sha256": "53876443f75adc7f3d2a1978a1da7b7fce0374161a32df75cb8fa06c39ce09ab"
+    }
+  }
+}
